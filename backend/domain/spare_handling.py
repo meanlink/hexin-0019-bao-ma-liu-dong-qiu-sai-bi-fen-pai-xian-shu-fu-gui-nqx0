@@ -9,7 +9,18 @@ def reserve_spare(conn, serial, layout):
 
 
 def return_to_stock(conn, serial):
-    conn.execute("UPDATE spare_harness SET state='spare' WHERE serial=%s AND state='reserved'", (serial,))
+    return return_reserved_spare(conn, serial)
+
+
+def return_reserved_spare(conn, serial):
+    """Return one reserved serial; return True only when this call moves it."""
+    if not serial:
+        return False
+    row = conn.execute(
+        "UPDATE spare_harness SET state='spare' WHERE serial=%s AND state='reserved' RETURNING serial",
+        (serial,),
+    ).fetchone()
+    return row is not None
 
 
 def fit_spare(conn, serial, board_code):

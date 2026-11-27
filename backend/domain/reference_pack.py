@@ -5,7 +5,6 @@ from itertools import groupby
 from core.errors import DomainError
 
 from .features import derive
-from .patterns import test_patterns
 
 LABELS = ("normal", "contact_drift", "mapping_shift")
 
@@ -16,10 +15,13 @@ def reference_pack(conn):
         SELECT r.specimen,r.scan_group,r.label,p.name,p.expected_mask,p.current_target_ma,
                r.first_mask,r.second_mask,r.settle_ms,r.current_ma
         FROM reference_trace AS r JOIN lamp_pattern AS p ON p.name=r.pattern_name
+        WHERE p.active
         ORDER BY r.specimen, p.name
         """
     ).fetchall()
-    pattern_count = len(test_patterns(conn))
+    pattern_count = conn.execute(
+        "SELECT count(*) AS count FROM lamp_pattern WHERE active"
+    ).fetchone()["count"]
     specimens = []
     for _, entries in groupby(rows, key=lambda row: row["specimen"]):
         group = list(entries)

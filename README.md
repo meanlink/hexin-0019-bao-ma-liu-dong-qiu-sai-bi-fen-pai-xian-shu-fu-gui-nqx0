@@ -30,6 +30,14 @@
 
 网关 18368，直连 FastAPI 19368，开发库 PostgreSQL 17868。API 和分类 worker 共用 Python 镜像，Redis 提供运行健康心跳。SEED_DEMO 控制初始化演示数据。登录 /auth/login 后用 Bearer token 调用领域接口。独立开发时先启动 Redis 与 PostgreSQL，再按 backend/requirements.txt 安装包，从 backend 目录使用 docker-compose.yml 中 API 和 worker 的环境变量与启动命令。
 
+## 坏图案、名单版本与复归票处置
+
+- `POST /bench/patterns/{name}/mark-bad`（兼容 `/bad`、`/disable`、`/quarantine` 及 `/tour/fixture-patterns/...` 别名）由班长标记串灯图案。名单版本递增，坏图案退出参考样本和分类特征；已录入的实测响应仍保留。
+- 新分类写入当前 `pattern_revision`。旧版本诊断不能再开复归票；标记时所有未装配（`allocated`）复归票会生成当前版本的 `pending` 处置，`/fit` 会被 409 拦住。已装配票不挂起，仍走独立复测和签发。
+- 重新调用 `POST /bench/sweeps/{id}/diagnose` 并由 worker 完成分类后，会自动处置对应待处理票；也可调用 `POST /service/cards/{id}/reassess`（兼容 `/reclassify`、`/reprocess`、`/disposition` 等别名）同步重判或提交 `new_diagnosis_id`。
+- 新旧判类相同：处置为 `restored`，原票保留并可装配；判类改变：处置为 `cancelled`，原票撤销且预留线束退回库存。每张票每个名单版本只有一条处置，重复请求返回同一结果，不会二次退料。
+- `GET /service/cards/{id}` 同时提供 `old_label`、`new_label`、`disposition_result`、`classification_review`、`installation_blocked` 等查询字段。
+
 ## 特征、模型和签发
 
 - 每个图案使用 14 位灯段掩码。错误位分为预期未亮、意外点亮、重复扫描改变、两次都重复错位、左右排错误。计时以毫秒计，电流以 mA 计。

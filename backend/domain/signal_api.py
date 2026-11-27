@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 
 from core.access import allow
 from core.db import transaction
+from core.errors import DomainError
 
+from .card_input import ReassessInput
+from .card_review import reassess_card
 from .diagnosis import fault, request_diagnosis
 from .patterns import pattern_responses
 from .signal_input import DiagnosisRequest, LampReading, SweepInput
@@ -39,3 +42,23 @@ def diagnose(sweep_id: int, spec: DiagnosisRequest, actor=Depends(allow("admin",
 def diagnosis(diagnosis_id: int, actor=Depends(allow("admin", "operator", "viewer"))):
     with transaction() as conn:
         return fault(conn, diagnosis_id)
+
+
+@router.post("/diagnoses/{diagnosis_id}/reassess-card")
+@router.post("/diagnoses/{diagnosis_id}/reprocess-card")
+def reassess_card_from_diagnosis(
+    diagnosis_id: int,
+    spec: ReassessInput | None = None,
+    actor=Depends(allow("admin", "operator")),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    with transaction() as conn:
+        card = conn.execute(
+            "SELECT id FROM restoration_card WHERE diagnosis_id=%s ORDER BY id DESC LIMIT 1",
+            (diagnosis_id,),
+        ).fetchone()
+        if card is None:
+            raise DomainError(404, "no restoration card uses this diagnosis")
+        return reassess_card(
+            conn, card["id"], spec, actor["username"], idempotency_key=idempotency_key
+        )

@@ -20,7 +20,7 @@ def release(conn, card_id, spec, reviewer):
     checked_meter(conn, sweep["meter_code"])
     if spec.sample_revision != sweep["sample_revision"]:
         raise DomainError(409, "retest readings changed after the signoff snapshot was selected")
-    rows = pattern_responses(conn, sweep["id"])
+    rows = pattern_responses(conn, sweep["id"], scope="recorded-active")
     board = load_board(conn, card["board_code"])
     failed = blockers(rows, board["settle_limit_ms"])
     if failed:
